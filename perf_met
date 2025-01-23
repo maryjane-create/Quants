@@ -1,0 +1,88 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime
+import yfinance as yf
+
+# Load the LONG SHORT data
+long_short_file = '/content/LONG SHORT.xlsx'
+long_short_data = pd.read_excel(long_short_file, sheet_name='Sheet1')
+
+# Function to fetch asset prices from Yahoo Finance
+def fetch_asset_prices(ticker, start_date, end_date):
+    """
+    Fetch historical price data for a given asset using Yahoo Finance.
+
+    Parameters:
+    ticker (str): Asset ticker symbol (e.g., 'AAPL', 'MSFT').
+    start_date (str): Start date in 'YYYY-MM-DD' format.
+    end_date (str): End date in 'YYYY-MM-DD' format.
+
+    Returns:
+    pd.DataFrame: DataFrame with 'Datetime' and 'Price' columns.
+    """
+    data = yf.download(ticker, start=start_date, end=end_date, interval='1h')
+    data = data.reset_index()
+    data = data.rename(columns={'Datetime': 'Datetime', 'Close': 'Price'})
+    return data[['Datetime', 'Price']]
+
+# Function to process and generate strategy file for each asset
+def generate_strategy_file(asset_prices, output_file):
+    """
+    Maps LONG SHORT strategy times to asset prices and computes metrics.
+
+    Parameters:
+    asset_prices (pd.DataFrame): DataFrame containing asset prices with 'Datetime' and 'Price'.
+    output_file (str): Filepath to save the output.
+    """
+    # Ensure 'Datetime' column is datetime type
+    asset_prices['Datetime'] = pd.to_datetime(asset_prices['Datetime'])
+
+    # Initialize result DataFrame
+    results = []
+
+    for _, row in long_short_data.iterrows():
+        # Extract entry and exit times, and make them timezone aware
+        entry_time = pd.to_datetime(row['Entry Time'], utc=True) # Make timezone aware
+        exit_time = pd.to_datetime(row['Exit Time'], utc=True)   # Make timezone aware
+
+        # Find the closest prices for entry and exit
+        entry_row = asset_prices.loc[asset_prices['Datetime'].sub(entry_time).abs().idxmin()]
+        exit_row = asset_prices.loc[asset_prices['Datetime'].sub(exit_time).abs().idxmin()]
+
+        # Calculate metrics
+        entry_price = entry_row['Price']
+        exit_price = exit_row['Price']
+        pl_percent = (exit_price - entry_price) / entry_price if row['Trade'] == 'LONG' else (entry_price - exit_price) / entry_price
+
+        # Append results
+        results.append({
+            'Trade': row['Trade'],
+            'Date': row['Date'],
+            'Entry Time': row['Entry Time'],
+            'Exit Time': row['Exit Time'],
+            'Entry Price': entry_price,
+            'Exit Price': exit_price,
+            'P/L (%)': pl_percent * 100,
+            'Days': (exit_time - entry_time).days,
+        })
+
+    # Create DataFrame from results
+    results_df = pd.DataFrame(results)
+
+    # Save to Excel
+    results_df.to_excel(output_file, index=False)
+
+# Example usage: Fetch prices from Yahoo Finance and generate strategy file
+# User-specified assets and date range
+assets = ['AAPL', 'MSFT', 'SPY']
+start_date = '2024-01-01'
+end_date = '2024-12-31'
+
+for asset in assets:
+    print(f"Fetching data for {asset}...")
+    asset_prices = fetch_asset_prices(asset, start_date, end_date)
+    output_file = f'/content/output_strategy_{asset}.xlsx'
+    print(f"Generating strategy file for {asset}...")
+    generate_strategy_file(asset_prices, output_file)
+
+print("Strategy files generated successfully.")
