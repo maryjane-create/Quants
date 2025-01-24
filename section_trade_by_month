@@ -1,0 +1,39 @@
+import pandas as pd
+import re
+
+# Load the Excel file
+file_path = '/content/output_strategy_AAPL.xlsx'
+data = pd.ExcelFile(file_path)
+
+# Parse the data from the first sheet
+df = data.parse('Sheet1')
+
+# Function to clean up the 'Price' and 'P/L (%)' columns by extracting only numeric values
+def clean_price_column(column):
+    return column.apply(lambda x: float(re.search(r"[-+]?\d*\.\d+|\d+", str(x)).group()) if pd.notnull(x) else None)
+
+# Clean the necessary columns
+df['Entry Price'] = clean_price_column(df['Entry Price'])
+df['Exit Price'] = clean_price_column(df['Exit Price'])
+df['P/L (%)'] = clean_price_column(df['P/L (%)'])
+
+# Handle invalid dates by coercing errors to NaT
+df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+
+# Remove rows with NaT in the 'Date' column
+df = df.dropna(subset=['Date'])
+
+# Add a new column for the month
+df['Month'] = df['Date'].dt.to_period('M')
+
+# Sort the data by month and then by date
+df = df.sort_values(by=['Month', 'Date']).reset_index(drop=True)
+
+# Save the data to a new Excel file
+output_file = '/content/sectioned_trades_by_month.xlsx'
+
+# Save the entire dataset sectioned by month in one sheet
+with pd.ExcelWriter(output_file) as writer:
+    df.to_excel(writer, sheet_name='Trades By Month', index=False)
+
+print(f"Sectioned trades by month have been saved to {output_file}")
