@@ -1,0 +1,164 @@
+import pandas as pd
+import numpy as np
+from statsmodels.tsa.stattools import coint
+import os
+
+# Step 1: Timeframes
+timeframes = {
+    '2-year': ('2023-03-01', '2025-03-01'),
+    '5-year': ('2020-01-01', '2025-01-01'),
+    '8-year': ('2017-01-01', '2025-01-01'),
+    '10-year': ('2015-01-01', '2025-01-01')
+}
+
+# Your provided file_paths dictionary here
+file_paths = {
+    'GTCO': '/content/NSENG_GTCO, 1D_e2363.csv',
+    'UBA': '/content/NSENG_UBA, 1D_d298c.csv',
+    'ZENITHBANK': '/content/NSENG_ZENITHBANK, 1D_6d9c1.csv',
+    'MTNN': '/content/NSENG_MTNN, 1D_ed527.csv',
+    'AIRTELAFRICA': '/content/NSENG_AIRTELAFRI, 1D_1e3ed.csv',
+    'DANGCEM': '/content/NSENG_DANGCEM, 1D_bbb2a.csv',
+    'BUACEMENT': '/content/NSENG_BUACEMENT, 1D_9928b.csv',
+    'UNILEVER': '/content/NSENG_UNILEVER, 1D_255fa.csv',
+    'NESTLE': '/content/NSENG_NESTLE, 1D_7b085.csv',
+    'FBN': '/content/NSENG_FBNH, 1D_15c8b.csv',
+    'FCMB': '/content/NSENG_FCMB, 1D_046f3.csv',
+    'ACCESSBANK': '/content/NSENG_ACCESSCORP, 1D_71fee.csv',
+    # 'UNIONBANK': '/path/to/XOM.xlsx',
+    'FIDELITYBANK': '/content/NSENG_FIDELITYBK, 1D_11cce.csv',
+    'ETI': '/content/NSENG_ETI, 1D_26f95.csv',
+    'GUINESS': '/content/NSENG_GUINNESS, 1D_f13f7.csv',
+    'FLOURMILLS': '/content/NSENG_FLOURMILL, 1D_ad9dd.csv',
+    'CONOIL': '/content/NSENG_CONOIL, 1D_61bad.csv',
+    'OANDO': '/content/NSENG_OANDO, 1D_b0fdc.csv',
+    'SEPLAT': '/content/NSENG_SEPLAT, 1D_b2172.csv',
+    # 'GSK': '/path/to/T.xlsx',
+    'MAYANDBAKER': '/content/NSENG_MAYBAKER, 1D_bb971.csv',
+    'JULIUSBERGER': '/content/NSENG_JBERGER, 1D_20fac.csv',
+    'JOHNHOLT': '/content/NSENG_JOHNHOLT, 1D_a5aa9.csv',
+    'UAC': '/content/NSENG_UACN, 1D_6163f.csv',
+    'TRANSCORP': '/content/NSENG_TRANSCORP, 1D_62ab7.csv',
+    'UPDC': '/content/NSENG_UPDC, 1D_58c00.csv',
+    'IKEJAHOTEL': '/content/NSENG_IKEJAHOTEL, 1D_8db9f.csv',
+    'ETERNA': '/content/NSENG_ETERNA, 1D_d1021.csv',
+    'OMATEK': '/content/NSENG_OMATEK, 1D_b5529.csv',
+    'PZ':'/content/NSENG_PZ, 1D_a1fb5.csv',
+    'STANBICIBTC': '/content/NSENG_STANBIC, 1D_da76f.csv',
+    'TOTALENERGIES': '/content/NSENG_TOTAL, 1D_9ee25.csv',
+    'AIICO':'/content/NSENG_AIICO, 1D_71aa9 (1).csv',
+    'AIRTEL':'/content/NSENG_AIRTELAFRI, 1D_1e3ed (1).csv',
+    'ARADEL':'/content/NSENG_ARADEL, 1D_1b7ee (1).csv',
+    'BUAFOOD':'/content/NSENG_BUAFOODS, 1D_4869e (1).csv',
+    'CORNERSTONE':'/content/NSENG_CORNERST, 1D_745a2 (1).csv',
+    'DANGSUGAR':'/content/NSENG_DANGSUGAR, 1D_601ba (1).csv',
+    'ETI':'/content/NSENG_ETI, 1D_26f95.csv',
+    'FBNH':'/content/NSENG_FBNH, 1D_15c8b (1).csv',
+    'GEREGU':'/content/NSENG_GEREGU, 1D_ee307 (1).csv',
+    'INTBREW':'/content/NSENG_INTBREW, 1D_84d73 (1).csv',
+    'JAIZBANK':'/content/NSENG_JAIZBANK, 1D_bc6e8.csv',
+    'MANSARD':'/content/NSENG_MANSARD, 1D_52cd5 (2).csv',
+    'NB':'/content/NSENG_NB, 1D_45d75.csv',
+    'OKOMUOIL':'/content/NSENG_OKOMUOIL, 1D_87901.csv',
+    'OMATEK':'/content/NSENG_OMATEK, 1D_b5529 (1).csv',
+    'PRESCO':'/content/NSENG_PRESCO, 1D_15e76 (1).csv',
+    'STERLINGBANK':'/content/NSENG_STERLINGNG, 1D_ec3d0 (1).csv',
+    'TIP':'/content/NSENG_TIP, 1D_b2cfb (1) (1).csv',
+    'TRANSCORPHOTEL':'/content/NSENG_TRANSCOHOT, 1D_ed216.csv',
+    'TRANSPOWER':'/content/NSENG_TRANSPOWER, 1D_081ff (1).csv',
+    'UACN':'/content/NSENG_UACN, 1D_6163f (1).csv',
+    'UCAP':'/content/NSENG_UCAP, 1D_181d9.csv',
+    'UPDC':'/content/NSENG_UPDC, 1D_58c00 (1).csv',
+    'WAPCO':'/content/NSENG_WAPCO, 1D_10d10 (1).csv',
+    'WAPIC':'/content/NSENG_WAPIC, 1D_b83aa (2).csv',
+
+
+
+}
+
+# Step 3: Load and convert prices to returns
+def load_return_data(file_paths):
+    all_data = []
+    for ticker, path in file_paths.items():
+        try:
+            if os.path.exists(path):
+                df = pd.read_excel(path) if path.endswith(".xlsx") else pd.read_csv(path)
+                df['time'] = pd.to_datetime(df['time'])
+                df.set_index('time', inplace=True)
+                df = df[['close']].rename(columns={'close': ticker})
+                df[ticker] = np.log(df[ticker] / df[ticker].shift(1))  # Log returns
+                all_data.append(df)
+            else:
+                print(f"File not found: {path} for ticker {ticker}")
+        except Exception as e:
+            print(f"Error reading {ticker}: {e}")
+   
+    if all_data:
+        merged = pd.concat(all_data, axis=1)
+        merged.sort_index(inplace=True)
+        return merged.dropna(how='all')
+    else:
+        print("No data loaded.")
+        return pd.DataFrame()
+
+returns_data = load_return_data(file_paths)
+
+# Print tickers successfully loaded
+print("\nLoaded Tickers with Returns:")
+print(list(returns_data.columns))
+
+# Step 4: Correlation on returns
+def calculate_correlation(data, start_date, end_date):
+    data_in_timeframe = data[(data.index >= start_date) & (data.index <= end_date)]
+    return data_in_timeframe.corr()
+
+correlation_tables = {}
+for name, (start, end) in timeframes.items():
+    start_date = pd.to_datetime(start)
+    end_date = pd.to_datetime(end)
+    corr_df = calculate_correlation(returns_data, start_date, end_date)
+    correlation_tables[name] = corr_df
+    output_filename = f"{name}_correlation_table.xlsx"
+    corr_df.to_excel(output_filename)
+    print(f"\n{name} Correlation Table saved to {output_filename}:")
+    print(corr_df)
+
+# Step 5: Cointegration of returns
+def perform_cointegration_tests(data):
+    n = len(data.columns)
+    results = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            asset1 = data.columns[i]
+            asset2 = data.columns[j]
+            try:
+                series1 = data[asset1].dropna()
+                series2 = data[asset2].dropna()
+                joined = pd.concat([series1, series2], axis=1).dropna()
+                score, pvalue, _ = coint(joined.iloc[:, 0], joined.iloc[:, 1])
+                if pvalue < 0.05:
+                    recommendation = "Highly Cointegrated ✅"
+                elif pvalue < 0.1:
+                    recommendation = "Moderate Cointegration ⚠️"
+                else:
+                    recommendation = "Not Cointegrated ❌"
+                results.append((asset1, asset2, score, pvalue, recommendation))
+            except Exception as e:
+                print(f"Error for {asset1} and {asset2}: {e}")
+    return pd.DataFrame(results, columns=[
+        'Asset1', 'Asset2', 'Cointegration Score', 'P-Value', 'Recommendation'
+    ])
+
+cointegration_df = perform_cointegration_tests(returns_data)
+
+# Save cointegration results to Excel
+with pd.ExcelWriter("cointegration_results.xlsx") as writer:
+    cointegration_df.to_excel(writer, sheet_name="All Results", index=False)
+    top_pairs = cointegration_df[cointegration_df['P-Value'] < 0.05].sort_values("P-Value")
+    top_pairs.to_excel(writer, sheet_name="Top Pairs", index=False)
+
+print("\n=== Cointegration Results (Saved to cointegration_results.xlsx) ===")
+if not top_pairs.empty:
+    print(top_pairs)
+else:
+    print("No strongly cointegrated return pairs found.")
